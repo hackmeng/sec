@@ -122,19 +122,30 @@ function mPasswordSet(){
     echo "密码复杂度配置完毕！"
     mPasswordCheck
 }
+#判断数组是否为空，为空返回 0
+function isn(){
+    arr=("$@")
+    len=${#arr[*]}
+    if [ $len == 0 ];then
+        return 0
+    else
+        return 1
+    fi
+}
 #备份配置文件
 function mBackupSetting(){
-    echo "开始备份$1文件"
-    echo "路径为：`dirname $1`"
-    echo "文件名：`basename $1`"
+    echo "#######################"
+    echo -e "\033[1;31m 开始备份$1文件 \033[0m"
+    echo -e "\033[1;31m 路径为：`dirname $1`\033[0m"
+    echo -e "\033[1;31m 文件名：`basename $1`\033[0m"
     BackupTime=$(date '+%Y%m%d%H%M')
     BackupFile=$(echo "$1.meng_bak$BackupTime")
     cp $1 $BackupFile
     if [ -f $BackupFile ];then
-        echo "备份成功，备份的文件为：$BackupFile"
+        echo -e "\033[1;31m 备份成功，备份的文件为：$BackupFile\033[0m"
         return 0
     else
-        echo "备份失败！请手动备份！"
+        echo -e "\033[1;31m 备份失败！请手动备份！\033[0m"
         main
     fi
 }
@@ -145,35 +156,49 @@ function mPasswordCheck(){
     PASS_MIN_LEN=$(cat /etc/login.defs |grep -v "#"|grep "PASS_MIN_LEN"|awk '{print $2}')
     PASS_WARN_AGE=$(cat /etc/login.defs |grep -v "#"|grep "PASS_WARN_AGE"|awk '{print $2}')
     if [ "$PASS_MAX_DAYS" -gt "$PASSMAXDAYS" ];then
-    \033[31;5m 输入无效 \033[0m
         echo -e "检查密码最多使用天数---结果：\033[1;31m 不符合要求 \033[0m当前值是："$PASS_MAX_DAYS
+        mArr[0]='PASS_MAX_DAYS'
     else
         echo "检查密码最多使用天数---结果：符合要求，当前值是："$PASS_MAX_DAYS
+        unset mArr[0]
     fi
     if [ "$PASS_MIN_DAYS" -gt "$PASSMINDAYS" ];then
         echo -e "检查密码修改最小天数---结果：\033[1;31m 不符合要求 \033[0m当前值是："$PASS_MIN_DAYS
+        mArr[1]='PASS_MIN_DAYS'
     else
         echo "检查密码修改最小天数---结果：符合要求，当前值是："$PASS_MIN_DAYS
+        unset mArr[1]
     fi
     if [ "$PASS_MIN_LEN" -gt "$PASSMINLEN" ];then
         echo -e "检查密码最短长度---结果：\033[1;31m 不符合要求 \033[0m当前值是："$PASS_MIN_LEN
+        mArr[2]='PASS_MIN_LEN'
     else
         echo "检查密码最短长度---结果：符合要求，当前值是："$PASS_MIN_LEN
+        unset mArr[2]
     fi
     if [ "$PASS_WARN_AGE" -gt "$PASSWARNAGE" ];then
         echo -e "检查密码到期前多少天通知用户---结果：\033[1;31m 不符合要求 \033[0m当前值是："$PASS_WARN_AGE
+        mArr[3]='PASS_WARN_AGE'
     else
         echo "检查密码到期前多少天通知用户---结果：符合要求，当前值是："$PASS_WARN_AGE
+        unset mArr[3]
     fi
-    read -p "是否设置密码策略[y/n]:" Y
-    if [ "$Y" == "y" ];then
-        mBackupSetting /etc/login.defs
-        if [ $? -eq 0 ];then
-            mPasswordSet
-        fi
-    else
+    isn "${mArr[@]}"
+    if [ $? == 0 ];then
+        echo -e "\033[1;31m 所有密码策略都符合要求！\033[0m"
         main
+    else
+        read -p "是否设置密码策略[y/n]:" Y
+        if [ "$Y" == "y" ];then
+            mBackupSetting /etc/login.defs
+            if [ $? -eq 0 ];then
+                mPasswordSet
+            fi
+        else
+            main
+        fi
     fi
+    
 }
 
 function main(){
