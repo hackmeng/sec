@@ -1,6 +1,7 @@
 #!/bin/bash
 #Filename: sec.sh
 #Author: Hackmeng
+#Source: https://github.com/hackmeng/sec
 #Date: 2021年1月28日
 
 #更新记录
@@ -10,6 +11,8 @@
 echo "##########################################################################"
 echo "#                                                                        #"
 echo "#                        主机安全检测加固脚本v1.0.1                      #"
+echo "#                           更新日期：2021年1月29日                     #"
+echo "#             脚本持续更新地址：https://github.com/hackmeng/sec           #"
 echo "#                                                                        #"
 echo "#警告:本脚本只是一个检查的操作,未对服务器做任何修改,管理员可以根据此报告 #"
 echo "#进行相应的安全整改                                                      #"
