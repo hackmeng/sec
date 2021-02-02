@@ -1,5 +1,5 @@
 #!/bin/bash
-#Filename: sec.sh
+#Filename: Meng.sh
 #Author: Hackmeng
 #Source: https://github.com/hackmeng/sec
 #Date: 2021年1月28日
@@ -109,16 +109,32 @@ function systeminfo(){
     main
 }
 
+#配置函数
+function mSetting(){
+    case "$1" in
+        PASS_MAX_DAYS|PASS_MIN_DAYS|PASS_MIN_LEN|PASS_WARN_AGE)
+            if (( $# == 2 )); then
+                sed -i "/^${1}/c\\${1}  ${2}" /etc/login.defs
+            else
+                echo "传递参数不够，$1设置失败！"
+            fi
+        ;;
+        2|3)
+            echo "case 2 or 3"
+        ;;
+        *)
+            echo "default"
+        ;;
+    esac
+    
+}
+
 #密码复杂度配置
 function mPasswordSet(){
-    # read -p  "设置密码最多可多少天不修改：" PASSMAXDAYS
-	# read -p  "设置密码修改之间最小的天数：" PASSMINDAYS
-	# read -p  "设置密码最短的长度：" PASSMINLEN
-	# read -p  "设置密码失效前多少天通知用户：" PASSWARNAGE
-    sed -i '/^PASS_MAX_DAYS/c\PASS_MAX_DAYS   '$PASSMAXDAYS'' /etc/login.defs
-	sed -i '/^PASS_MIN_DAYS/c\PASS_MIN_DAYS   '$PASSMINDAYS'' /etc/login.defs
-	sed -i '/^PASS_MIN_LEN/c\PASS_MIN_LEN     '$PASSMINLEN'' /etc/login.defs
-	sed -i '/^PASS_WARN_AGE/c\PASS_WARN_AGE   '$PASSWARNAGE'' /etc/login.defs
+    mSetting PASS_MAX_DAYS $PASSMAXDAYS
+    mSetting PASS_MIN_DAYS $PASSMINDAYS
+    mSetting PASS_MIN_LEN $PASSMINLEN
+    mSetting PASS_WARN_AGE $PASSWARNAGE
     echo "密码复杂度配置完毕！"
     mPasswordCheck
 }
@@ -149,40 +165,31 @@ function mBackupSetting(){
         main
     fi
 }
-#密码复杂度检测
+
+#复杂度检测过程
+function mPasswdCheck(){
+    if (( $# == 4 )); then
+        str=PASS_MAX_DAYS=$(cat /etc/login.defs |grep -v "#"|grep "$1"|awk '{print $2}')
+        if [[ $str -gt $2 ]];then
+        echo -e "检查$3---结果：\033[1;31m 不符合要求 \033[0m当前值是："$str
+        mArr[$4]="$1"
+        else
+            echo "检查$3---结果：符合要求，当前值是："$str
+            unset mArr["$4"]
+        fi
+    else
+        echo "$1传递值数量不够！"
+    fi
+    
+    
+}
+#
+#复杂度检测结果
 function mPasswordCheck(){
-    PASS_MAX_DAYS=$(cat /etc/login.defs |grep -v "#"|grep "PASS_MAX_DAYS"|awk '{print $2}')
-    PASS_MIN_DAYS=$(cat /etc/login.defs |grep -v "#"|grep "PASS_MIN_DAYS"|awk '{print $2}')
-    PASS_MIN_LEN=$(cat /etc/login.defs |grep -v "#"|grep "PASS_MIN_LEN"|awk '{print $2}')
-    PASS_WARN_AGE=$(cat /etc/login.defs |grep -v "#"|grep "PASS_WARN_AGE"|awk '{print $2}')
-    if [ "$PASS_MAX_DAYS" -gt "$PASSMAXDAYS" ];then
-        echo -e "检查密码最多使用天数---结果：\033[1;31m 不符合要求 \033[0m当前值是："$PASS_MAX_DAYS
-        mArr[0]='PASS_MAX_DAYS'
-    else
-        echo "检查密码最多使用天数---结果：符合要求，当前值是："$PASS_MAX_DAYS
-        unset mArr[0]
-    fi
-    if [ "$PASS_MIN_DAYS" -gt "$PASSMINDAYS" ];then
-        echo -e "检查密码修改最小天数---结果：\033[1;31m 不符合要求 \033[0m当前值是："$PASS_MIN_DAYS
-        mArr[1]='PASS_MIN_DAYS'
-    else
-        echo "检查密码修改最小天数---结果：符合要求，当前值是："$PASS_MIN_DAYS
-        unset mArr[1]
-    fi
-    if [ "$PASS_MIN_LEN" -gt "$PASSMINLEN" ];then
-        echo -e "检查密码最短长度---结果：\033[1;31m 不符合要求 \033[0m当前值是："$PASS_MIN_LEN
-        mArr[2]='PASS_MIN_LEN'
-    else
-        echo "检查密码最短长度---结果：符合要求，当前值是："$PASS_MIN_LEN
-        unset mArr[2]
-    fi
-    if [ "$PASS_WARN_AGE" -gt "$PASSWARNAGE" ];then
-        echo -e "检查密码到期前多少天通知用户---结果：\033[1;31m 不符合要求 \033[0m当前值是："$PASS_WARN_AGE
-        mArr[3]='PASS_WARN_AGE'
-    else
-        echo "检查密码到期前多少天通知用户---结果：符合要求，当前值是："$PASS_WARN_AGE
-        unset mArr[3]
-    fi
+    mPasswdCheck PASS_MAX_DAYS $PASSMAXDAYS "密码最多使用天数" 0
+    mPasswdCheck PASS_MIN_DAYS $PASSMINDAYS "密码修改最小天数" 1
+    mPasswdCheck PASS_MIN_LEN $PASSMINLEN "密码最短长度" 2
+    mPasswdCheck PASS_WARN_AGE $PASSWARNAGE "密码到期前通知用户天数" 3
     isn "${mArr[@]}"
     if [ $? == 0 ];then
         echo -e "\033[1;31m 所有密码策略都符合要求！\033[0m"
@@ -198,7 +205,6 @@ function mPasswordCheck(){
             main
         fi
     fi
-    
 }
 
 function main(){
