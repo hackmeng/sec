@@ -17,13 +17,29 @@ echo "#进行相应的安全整改                                              
 echo "##########################################################################"
 echo " "
 #全局变量配置开始
-mArr=()
-PASSMAXDAYS="12"
-PASSMINDAYS="12"
-PASSMINLEN="12"
-PASSWARNAGE="12"
+PASSMAXDAYS="12" #密码最大使用天数
+PASSMINDAYS="12" #密码最小使用天数
+PASSMINLEN="12"  #密码最短长度
+PASSWARNAGE="12" #密码到期多少天通知用户
+pam_crack='retry=3 difok=3 minlen=12 ucredit=-1 lcredit=-1 dcredit=-1' #密码复杂度
+pam_tally='deny=3 unlock_time=5 even_deny_root root_unlock_time=10' #密码连续输入错误锁定
+REMEMBER='5' #密码重复使用次数
+TMOUT='300' #超时锁定
+HISTSIZE='10' #历史记录保存数量
+UMASK='077'
+#通过停用服务关闭不必要的端口，下面括号内服务为检测项，需仔细确认！！
+SERV=(ntalk lpd kshell sendmail klogin printer nfslock discard chargen bootps daytime tftp ypbind ident)
+PASSCK=(retry difok minlen ucredit lcredit dcredit)
 #全局变量配置结束
 
+
+#系统变量开始
+mArr=()
+aArr=()
+passwd_flag=0
+authhead=(auth account password session -session session optional required requisite sufficient)
+authpam_pwqualityhead='password    requisite     pam_pwquality.so try_first_pass local_users_only authtok_type='
+#系统变量结束
 #查看系统信息
 function systeminfo(){
     echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>系统基本信息<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
@@ -119,8 +135,15 @@ function mSetting(){
                 echo "传递参数不够，$1设置失败！"
             fi
         ;;
-        2|3)
-            echo "case 2 or 3"
+        pam_pwquality|3)
+            if (( $2 == 0 )); then
+                sed -i "s/^password.*requisite.*pam_pwquality\.so.*/& $4/" /etc/pam.d/system-auth
+                echo "$1参数修改完毕！"
+            else
+                echo "$3 $4" >> /etc/pam.d/system-auth
+                echo "$1参数增加完毕！"
+            fi
+            
         ;;
         *)
             echo "default"
@@ -129,7 +152,7 @@ function mSetting(){
     
 }
 
-#密码复杂度配置
+#密码时效配置
 function mPasswordSet(){
     mSetting PASS_MAX_DAYS $PASSMAXDAYS
     mSetting PASS_MIN_DAYS $PASSMINDAYS
@@ -166,10 +189,10 @@ function mBackupSetting(){
     fi
 }
 
-#复杂度检测过程
+#密码时效检测过程
 function mPasswdCheck(){
     if (( $# == 4 )); then
-        str=PASS_MAX_DAYS=$(cat /etc/login.defs |grep -v "#"|grep "$1"|awk '{print $2}')
+        str=$(cat /etc/login.defs |grep -v "#"|grep "$1"|awk '{print $2}')
         if [[ $str -gt $2 ]];then
         echo -e "检查$3---结果：\033[1;31m 不符合要求 \033[0m当前值是："$str
         mArr[$4]="$1"
@@ -180,11 +203,53 @@ function mPasswdCheck(){
     else
         echo "$1传递值数量不够！"
     fi
-    
+}
+#复杂度检测过程
+function mPassFCheck(){
+    if (( $# == 4 )); then
+        cat /etc/pam.d/system-auth |grep -v "^#"|grep "$1"
+        if (( $? == 0 )); then
+            for item in $2; do
+                cat /etc/pam.d/system-auth |grep -v "^#"|grep "$item" >> /dev/null
+                if (( $? == 0 )); then
+                    echo "$3检测结果： 包含$item配置项，检测合格"
+                    unset aArr[$4]
+                else
+                    echo -e "$3检测结果：不包含$item配置项，\033[1;31m检测不通过\033[0m"
+                    aArr[$4]="$1"
+                fi
+            done
+        else
+            passwd_flag=1
+            echo "$3\033[1;31m检测不通过，缺少该项配置\033[0m"
+            aArr[$4]="$1"
+        fi
+        
+    else
+        echo "参数数量不够！"
+    fi
     
 }
-#
-#复杂度检测结果
+function mauthCheck(){
+    passwd_flag=0
+    mPassFCheck pam_pwquality "${PASSCK[*]}" "密码复杂度" 0 
+    isn "${aArr[@]}"
+    if [ $? == 0 ];then
+        echo -e "\033[1;31m 所有system-auth策略都符合要求！\033[0m"
+        main
+    else
+        read -p "是否设置system-auth策略[y/n]:" Y
+        if [ "$Y" == "y" ];then
+            mBackupSetting /etc/pam.d/system-auth
+            if [ $? -eq 0 ];then
+                mSetting pam_pwquality $passwd_flag "$authpam_pwqualityhead" "$pam_crack"
+            fi
+        else
+            main
+        fi
+    fi
+}
+#密码时效检测结果
 function mPasswordCheck(){
     mPasswdCheck PASS_MAX_DAYS $PASSMAXDAYS "密码最多使用天数" 0
     mPasswdCheck PASS_MIN_DAYS $PASSMINDAYS "密码修改最小天数" 1
@@ -230,6 +295,7 @@ function main(){
         mPasswordCheck
     ;;
     3)
+        mauthCheck
     ;;
     4)
     ;;
